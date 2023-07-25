@@ -1,36 +1,34 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 
+	"github.com/RugeFX/go-fiber-1.git/database"
+	"github.com/RugeFX/go-fiber-1.git/router"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if envErr := godotenv.Load(".env"); envErr != nil {
+		panic("Error loading env")
+	}
+	database.ConnectDB()
+
+	// Initialize the new Fiber App
 	app := fiber.New()
-
+	// Use the CORS middleware globally
 	app.Use(cors.New())
-
+	// Testing the endpoint
 	app.Get("/", func(c *fiber.Ctx) error {
-		return c.Status(http.StatusOK).JSON(&fiber.Map{
-			"hello": &fiber.Map{"bjir": 1},
+		return c.Status(fiber.StatusOK).JSON(&fiber.Map{
+			"welcome": &fiber.Map{"num": 1},
 		})
 	})
 
-	app.Use("/test", func(c *fiber.Ctx) error {
-		if c.Method() == "GET" {
-			return c.JSON(&fiber.Map{
-				"rightio": true,
-			})
-		}
+	// Setup the routes from the router
+	router.SetupRoutes(app)
 
-		return c.Status(http.StatusMethodNotAllowed).JSON(&fiber.Map{
-			"message": fmt.Sprintf("Method %q is not allowed", c.Method()),
-		})
-	})
-
-	log.Fatal(app.Listen(":8000"))
+	log.Fatal(app.Listen(":8001"))
 }
