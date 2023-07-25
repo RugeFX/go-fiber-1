@@ -1,10 +1,21 @@
 package userHandlers
 
 import (
+	"fmt"
+
 	"github.com/RugeFX/go-fiber-1.git/database"
 	"github.com/RugeFX/go-fiber-1.git/internal/models"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
+
+type ReqCreateUser struct {
+	Username string `json:"username"`
+	Password string `json:"-"`
+	Email    string `json:"email"`
+}
 
 // Gets all users
 func GetAllUsers(c *fiber.Ctx) error {
@@ -26,17 +37,29 @@ func GetAllUsers(c *fiber.Ctx) error {
 	})
 }
 
-func GetUserByID(c *fiber.Ctx) error {
+func GetUserByUsername(c *fiber.Ctx) error {
+	type ReqUser struct {
+		Username       string `json:"username"`
+		Email          string `json:"email"`
+		ProfilePicture string `json:"profilePicture"`
+	}
+
 	db := database.DB
-	var user models.User
+	var findUser models.User
 
-	db.First(&user, c.Params("id"))
+	db.Where("LOWER(username) = LOWER(?)", c.Params("username")).Find(&findUser)
 
-	if !user.Username.Valid {
+	if findUser.Username == "" {
 		return c.Status(404).JSON(fiber.Map{
 			"status": "failed",
 			"error":  "User not found",
 		})
+	}
+
+	user := ReqUser{
+		Username:       findUser.Username,
+		Email:          findUser.Email,
+		ProfilePicture: findUser.ProfilePicture,
 	}
 
 	return c.Status(200).JSON(fiber.Map{
@@ -47,19 +70,32 @@ func GetUserByID(c *fiber.Ctx) error {
 
 func CreateUser(c *fiber.Ctx) error {
 	db := database.DB
-	var user models.User
+	var user ReqCreateUser
+
+	// TODO : Validate user
 
 	if err := c.BodyParser(&user); err != nil {
 		return err
 	}
 
-	// newPass, _ := bcrypt.GenerateFromPassword([]byte(user.Password), 8)
-	// user.Password = string(newPass)
+	newPass := hashPassword([]byte(user.Password))
 
-	result := db.Create(&user)
+	newUser := &models.User{
+		Username: user.Username,
+		Password: newPass,
+		Email:    user.Email,
+	}
+
+	result := db.Create(newUser)
 
 	if err := result.Error; err != nil {
-		return c.Status(200).JSON(fiber.Map{
+		if err == gorm.ErrDuplicatedKey {
+			return c.Status(400).JSON(fiber.Map{
+				"status": "failed",
+				"error":  "User already exists",
+			})
+		}
+		return c.Status(500).JSON(fiber.Map{
 			"status": "failed",
 			"error":  err.Error(),
 		})
@@ -69,4 +105,54 @@ func CreateUser(c *fiber.Ctx) error {
 		"status": "success",
 		"data":   user,
 	})
+}
+
+func DeleteUserByID(c *fiber.Ctx) error {
+	db := database.DB
+	var user models.User
+
+	userId, err := uuid.Parse(c.Params("id"))
+
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"status": "failed",
+			"error":  "Invalid user ID format",
+		})
+	}
+	// fmt.Println("User ID: ", id)
+	result := db.Find(&user, userId)
+
+	if user.Username == "" {
+		return c.Status(404).JSON(fiber.Map{
+			"status": "failed",
+			"error":  "Record not found",
+		})
+	}
+
+	result = result.Delete(&user)
+
+	if err := result.Error; err != nil {
+		fmt.Println("if err")
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(404).JSON(fiber.Map{
+				"status": "failed",
+				"error":  "Record not found",
+			})
+		} else {
+			return c.Status(500).JSON(fiber.Map{
+				"status": "failed",
+				"error":  err.Error(),
+			})
+		}
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"status": "success",
+		"data":   user,
+	})
+}
+
+func hashPassword(p []byte) string {
+	hash, _ := bcrypt.GenerateFromPassword(p, 8)
+	return string(hash)
 }

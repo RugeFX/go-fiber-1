@@ -1,8 +1,9 @@
 package models
 
 import (
-	"database/sql"
+	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -10,9 +11,13 @@ import (
 // 'reg_num', 'profile_picture', 'password', 'level_id', 'created_at',
 
 type User struct {
-	gorm.Model
-	Username       sql.NullString `json:"username" gorm:"not null;unique;type:varchar(25)"`
-	ProfilePicture string         `json:"profile_picture" gorm:"default:'default.png'"`
-	Password       sql.NullString `json:"password" gorm:"not null;type:varchar(18)"`
+	ID             uuid.UUID      `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	CreatedAt      time.Time      `json:"createdAt"`
+	UpdatedAt      time.Time      `json:"updatedAt"`
+	DeletedAt      gorm.DeletedAt `json:"deletedAt" gorm:"index"`
+	Username       string         `json:"username" gorm:"not null;unique;type:varchar(25)"`
+	Email          string         `json:"email" gorm:"not null;unique"`
+	ProfilePicture string         `json:"profilePicture" gorm:"default:'default.png'"`
+	Password       string         `json:"password" gorm:"not null;type:varchar(80)"`
 	Level          int            `json:"level" gorm:"default:0"`
 }
