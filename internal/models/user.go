@@ -18,6 +18,12 @@ type User struct {
 	Username       string         `json:"username" gorm:"not null;unique;type:varchar(25)"`
 	Email          string         `json:"email" gorm:"not null;unique"`
 	ProfilePicture string         `json:"profilePicture" gorm:"default:'default.png'"`
-	Password       string         `json:"password" gorm:"not null;type:varchar(80)"`
+	Password       string         `json:"-" gorm:"not null;type:varchar(80)"`
 	Level          int            `json:"level" gorm:"default:0"`
+}
+
+type ReqUser struct {
+	Username       string `json:"username"`
+	Email          string `json:"email"`
+	ProfilePicture string `json:"profilePicture"`
 }

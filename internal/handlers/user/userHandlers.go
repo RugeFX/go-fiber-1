@@ -1,10 +1,9 @@
 package userHandlers
 
 import (
-	"fmt"
-
 	"github.com/RugeFX/go-fiber-1.git/database"
 	"github.com/RugeFX/go-fiber-1.git/internal/models"
+	userRepo "github.com/RugeFX/go-fiber-1.git/internal/repositories/user"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -38,12 +37,6 @@ func GetAllUsers(c *fiber.Ctx) error {
 }
 
 func GetUserByUsername(c *fiber.Ctx) error {
-	type ReqUser struct {
-		Username       string `json:"username"`
-		Email          string `json:"email"`
-		ProfilePicture string `json:"profilePicture"`
-	}
-
 	db := database.DB
 	var findUser models.User
 
@@ -56,7 +49,7 @@ func GetUserByUsername(c *fiber.Ctx) error {
 		})
 	}
 
-	user := ReqUser{
+	user := models.ReqUser{
 		Username:       findUser.Username,
 		Email:          findUser.Email,
 		ProfilePicture: findUser.ProfilePicture,
@@ -70,6 +63,7 @@ func GetUserByUsername(c *fiber.Ctx) error {
 
 func CreateUser(c *fiber.Ctx) error {
 	db := database.DB
+	repo := userRepo.New(db)
 	var user ReqCreateUser
 
 	// TODO : Validate user
@@ -80,15 +74,15 @@ func CreateUser(c *fiber.Ctx) error {
 
 	newPass := hashPassword([]byte(user.Password))
 
-	newUser := &models.User{
+	newUser := models.User{
 		Username: user.Username,
 		Password: newPass,
 		Email:    user.Email,
 	}
 
-	result := db.Create(newUser)
+	_, err := repo.Save(newUser)
 
-	if err := result.Error; err != nil {
+	if err != nil {
 		if err == gorm.ErrDuplicatedKey {
 			return c.Status(400).JSON(fiber.Map{
 				"status": "failed",
@@ -132,7 +126,53 @@ func DeleteUserByID(c *fiber.Ctx) error {
 	result = result.Delete(&user)
 
 	if err := result.Error; err != nil {
-		fmt.Println("if err")
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(404).JSON(fiber.Map{
+				"status": "failed",
+				"error":  "Record not found",
+			})
+		} else {
+			return c.Status(500).JSON(fiber.Map{
+				"status": "failed",
+				"error":  err.Error(),
+			})
+		}
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"status": "success",
+		"data":   user,
+	})
+}
+
+func UpdateUser(c *fiber.Ctx) error {
+	db := database.DB
+	var user models.User
+
+	userId, err := uuid.Parse(c.Params("id"))
+
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"status": "failed",
+			"error":  "Invalid user ID format",
+		})
+	}
+
+	result := db.Find(&user, userId)
+
+	if user.Username == "" {
+		return c.Status(404).JSON(fiber.Map{
+			"status": "failed",
+			"error":  "Record not found",
+		})
+	}
+
+	if err := c.BodyParser(&user); err != nil {
+		return err
+	}
+
+	result = result.Save(&user)
+	if err := result.Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(404).JSON(fiber.Map{
 				"status": "failed",

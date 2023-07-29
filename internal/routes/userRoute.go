@@ -12,4 +12,5 @@ func RegisterUserRoute(r fiber.Router) {
 	user.Get("/:username", userHandlers.GetUserByUsername)
 	user.Post("/", userHandlers.CreateUser)
 	user.Delete("/:id", userHandlers.DeleteUserByID)
+	user.Put("/:id", userHandlers.UpdateUser)
 }
